@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="cs">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Násobilka</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="game-shell">
+    <header class="topbar">
+      <div>
+        <span class="label">Level</span>
+        <strong id="level">1</strong>
+      </div>
+      <div>
+        <span class="label">Skóre</span>
+        <strong id="score">0</strong>
+      </div>
+    </header>
+
+    <section id="start-screen" class="screen active">
+      <div class="mascot" aria-hidden="true">★</div>
+      <h1>Násobilka</h1>
+      <p>Dej aspoň 80 % správně a postup dál.</p>
+      <button id="start-button" class="primary-button" type="button">Hrát</button>
+    </section>
+
+    <section id="question-screen" class="screen">
+      <div class="round-line">
+        <span id="question-count">1 / 10</span>
+        <span id="correct-count">0 správně</span>
+      </div>
+      <div class="timer" aria-label="Zbývající čas">
+        <div id="timer-fill" class="timer-fill"></div>
+      </div>
+      <div id="expression" class="expression">5 · 5</div>
+      <div id="answers" class="answers"></div>
+      <div id="feedback" class="feedback" aria-live="polite"></div>
+    </section>
+
+    <section id="result-screen" class="screen">
+      <div id="result-burst" class="result-burst">★</div>
+      <h2>Level dokončen</h2>
+      <div id="stars" class="stars" aria-label="Hvězdičky"></div>
+      <div id="score-breakdown" class="score-breakdown"></div>
+      <button id="continue-button" class="primary-button" type="button">Pokračovat</button>
+    </section>
+  </main>
+
+  <script src="game.js"></script>
+  <script>
+    const game = window.NasobilkaGame;
+    const screens = {
+      start: document.getElementById('start-screen'),
+      question: document.getElementById('question-screen'),
+      result: document.getElementById('result-screen')
+    };
+    const levelEl = document.getElementById('level');
+    const scoreEl = document.getElementById('score');
+    const questionCountEl = document.getElementById('question-count');
+    const correctCountEl = document.getElementById('correct-count');
+    const timerFillEl = document.getElementById('timer-fill');
+    const expressionEl = document.getElementById('expression');
+    const answersEl = document.getElementById('answers');
+    const feedbackEl = document.getElementById('feedback');
+    const starsEl = document.getElementById('stars');
+    const scoreBreakdownEl = document.getElementById('score-breakdown');
+    const continueButtonEl = document.getElementById('continue-button');
+    const resultBurstEl = document.getElementById('result-burst');
+
+    let state = {
+      level: game.readStoredLevel(),
+      totalScore: game.readStoredScore(),
+      questionIndex: 0,
+      correctCount: 0,
+      roundQuestions: [],
+      activeQuestion: null,
+      answered: false,
+      timerId: null
+    };
+
+    function showScreen(name) {
+      Object.values(screens).forEach((screen) => screen.classList.remove('active'));
+      screens[name].classList.add('active');
+    }
+
+    function renderTopbar() {
+      levelEl.textContent = state.level;
+      scoreEl.textContent = state.totalScore;
+    }
+
+    function startRound() {
+      state.questionIndex = 0;
+      state.correctCount = 0;
+      state.roundQuestions = game.createRound(state.level);
+      showScreen('question');
+      nextQuestion();
+    }
+
+    function nextQuestion() {
+      window.clearTimeout(state.timerId);
+      state.answered = false;
+      feedbackEl.textContent = '';
+      feedbackEl.className = 'feedback';
+      answersEl.innerHTML = '';
+
+      if (state.questionIndex >= state.roundQuestions.length) {
+        finishRound();
+        return;
+      }
+
+      state.activeQuestion = state.roundQuestions[state.questionIndex];
+      questionCountEl.textContent = `${state.questionIndex + 1} / ${state.roundQuestions.length}`;
+      correctCountEl.textContent = `${state.correctCount} správně`;
+      expressionEl.textContent = state.activeQuestion.expression;
+
+      state.activeQuestion.options.forEach((option) => {
+        const button = document.createElement('button');
+        button.className = 'answer-button';
+        button.type = 'button';
+        button.textContent = option;
+        button.addEventListener('click', () => answerQuestion(option));
+        answersEl.appendChild(button);
+      });
+
+      const limit = game.getTimeLimit(state.level);
+      timerFillEl.style.animation = 'none';
+      timerFillEl.offsetHeight;
+      timerFillEl.style.animation = `timebar ${limit}s linear forwards`;
+      state.timerId = window.setTimeout(() => answerQuestion(null), limit * 1000);
+    }
+
+    function answerQuestion(answer) {
+      if (state.answered) {
+        return;
+      }
+
+      state.answered = true;
+      window.clearTimeout(state.timerId);
+      timerFillEl.style.animationPlayState = 'paused';
+
+      const correct = answer === state.activeQuestion.correctAnswer;
+      if (correct) {
+        state.correctCount += 1;
+        feedbackEl.textContent = 'Správně!';
+        feedbackEl.className = 'feedback good pop';
+      } else {
+        feedbackEl.textContent = `Špatně. Správně je ${state.activeQuestion.correctAnswer}.`;
+        feedbackEl.className = 'feedback bad pop';
+      }
+
+      Array.from(answersEl.children).forEach((button) => {
+        button.disabled = true;
+        if (Number(button.textContent) === state.activeQuestion.correctAnswer) {
+          button.classList.add('correct');
+        } else if (Number(button.textContent) === answer) {
+          button.classList.add('wrong');
+        }
+      });
+
+      state.questionIndex += 1;
+      window.setTimeout(nextQuestion, correct ? 850 : 1400);
+    }
+
+    function finishRound() {
+      const questionCount = state.roundQuestions.length;
+      const scoreBreakdown = game.calculateRoundScoreBreakdown(state.correctCount, questionCount, state.level);
+      const roundScore = scoreBreakdown.earnedPoints;
+      const outcome = game.getRoundOutcome(state.correctCount, questionCount, state.level);
+      state.totalScore += roundScore;
+      state.level = outcome.nextLevel;
+      game.saveProgress(state.level, state.totalScore);
+      renderTopbar();
+
+      starsEl.textContent = '★'.repeat(outcome.stars) + '☆'.repeat(3 - outcome.stars);
+      renderScoreBreakdown(scoreBreakdown, questionCount);
+      continueButtonEl.textContent = game.getResultButtonText(outcome);
+      resultBurstEl.classList.remove('burst');
+      resultBurstEl.offsetHeight;
+      resultBurstEl.classList.add('burst');
+      showScreen('result');
+    }
+
+    function formatPoints(points) {
+      return points < 0 ? `- ${Math.abs(points)}` : String(points);
+    }
+
+    function scoreRow(label, value, className = '') {
+      const row = document.createElement('div');
+      row.className = `score-row ${className}`.trim();
+
+      const labelEl = document.createElement('span');
+      labelEl.textContent = label;
+
+      const dotsEl = document.createElement('span');
+      dotsEl.className = 'score-dots';
+
+      const valueEl = document.createElement('strong');
+      valueEl.textContent = formatPoints(value);
+
+      row.append(labelEl, dotsEl, valueEl);
+      return row;
+    }
+
+    function renderScoreBreakdown(scoreBreakdown, questionCount) {
+      const wrongCount = questionCount - state.correctCount;
+      scoreBreakdownEl.innerHTML = '';
+      scoreBreakdownEl.append(
+        scoreRow(`${state.correctCount} správně`, scoreBreakdown.correctPoints, 'positive'),
+        scoreRow(`${wrongCount} špatně`, scoreBreakdown.wrongPoints, 'negative'),
+        scoreRow('Celkem', scoreBreakdown.baseTotal, 'subtotal')
+      );
+
+      if (scoreBreakdown.bonusName) {
+        scoreBreakdownEl.append(scoreRow(scoreBreakdown.bonusName, scoreBreakdown.bonusPoints, 'bonus'));
+      }
+
+      scoreBreakdownEl.append(
+        scoreRow(`LEVEL BONUS ×${scoreBreakdown.levelMultiplier.toFixed(1)}`, scoreBreakdown.levelBonusPoints, 'bonus'),
+        scoreRow('CELKEM BODŮ', scoreBreakdown.earnedPoints, 'final')
+      );
+    }
+
+    document.getElementById('start-button').addEventListener('click', startRound);
+    continueButtonEl.addEventListener('click', startRound);
+    renderTopbar();
+  </script>
+</body>
+</html>
