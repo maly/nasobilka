@@ -12,34 +12,35 @@ function test(name, fn) {
   }
 }
 
-test('level 1 uses only factors 5, 6, and 7', () => {
+test('level 1 uses only multiplication table of 2', () => {
   const factors = game.getLevelFactors(1);
-  assert.deepStrictEqual(factors, [5, 6, 7]);
+  assert.deepStrictEqual(factors, [2]);
 });
 
-test('level 2 adds factor 8', () => {
-  const factors = game.getLevelFactors(2);
-  assert.deepStrictEqual(factors, [5, 6, 7, 8]);
+test('level 9 combines tables 2 and 3', () => {
+  const factors = game.getLevelFactors(9);
+  assert.deepStrictEqual(factors, [2, 3]);
 });
 
 test('level 4 uses a 10 second limit while earlier levels use 15 seconds', () => {
-  assert.strictEqual(game.getTimeLimit(1), 15);
-  assert.strictEqual(game.getTimeLimit(3), 15);
-  assert.strictEqual(game.getTimeLimit(4), 10);
-  assert.strictEqual(game.getTimeLimit(8), 10);
+    assert.strictEqual(game.getTimeLimit(1), 30);
+    assert.strictEqual(game.getTimeLimit(10), 30);
+    assert.strictEqual(game.getTimeLimit(17), 30);
+    assert.strictEqual(game.getTimeLimit(18), 10);
 });
 
 test('round question count is the next higher ten from factor count squared', () => {
-  assert.strictEqual(game.getRoundQuestionCount([5, 6, 7]), 10);
-  assert.strictEqual(game.getRoundQuestionCount([5, 6, 7, 8]), 20);
-  assert.strictEqual(game.getRoundQuestionCount([4, 5, 6, 7, 8]), 30);
-  assert.strictEqual(game.getRoundQuestionCount([3, 4, 5, 6, 7, 8]), 40);
+  assert.strictEqual(game.getRoundQuestionCount([2]), 10);
+  assert.strictEqual(game.getRoundQuestionCount([2, 3]), 10);
+  assert.strictEqual(game.getRoundQuestionCount([2, 3, 4]), 10);
+  assert.strictEqual(game.getRoundQuestionCount([2, 3, 4, 5]), 20);
+  assert.strictEqual(game.getRoundQuestionCount([2, 3, 4, 5, 6, 7, 8, 9]), 70);
 });
 
 test('round score applies base score, accuracy bonus, and level multiplier', () => {
   assert.strictEqual(game.calculateRoundScore(8, 10, 1), 550);
-  assert.strictEqual(game.calculateRoundScore(18, 20, 2), 2700);
-  assert.strictEqual(game.calculateRoundScore(20, 20, 4), 5600);
+  assert.strictEqual(game.calculateRoundScore(9, 10, 9), 2138);
+  assert.strictEqual(game.calculateRoundScore(70, 70, 18), 39200);
 });
 
 test('round score breakdown shows bonuses and never returns negative earned points', () => {
@@ -55,26 +56,26 @@ test('round score breakdown shows bonuses and never returns negative earned poin
     earnedPoints: 275
   });
 
-  assert.deepStrictEqual(game.calculateRoundScoreBreakdown(18, 20, 2), {
-    correctPoints: 1800,
-    wrongPoints: -300,
-    baseTotal: 1500,
+  assert.deepStrictEqual(game.calculateRoundScoreBreakdown(9, 10, 9), {
+    correctPoints: 900,
+    wrongPoints: -150,
+    baseTotal: 750,
     bonusName: 'BONUS',
-    bonusPoints: 750,
-    afterAccuracyBonus: 2250,
-    levelMultiplier: 1.2,
-    levelBonusPoints: 450,
-    earnedPoints: 2700
+    bonusPoints: 375,
+    afterAccuracyBonus: 1125,
+    levelMultiplier: 1.9,
+    levelBonusPoints: 1013,
+    earnedPoints: 2138
   });
 
   assert.strictEqual(game.calculateRoundScoreBreakdown(0, 10, 1).earnedPoints, 0);
 });
 
 test('round outcome advances and awards stars by percentage', () => {
-  assert.deepStrictEqual(game.getRoundOutcome(15, 20, 3), { passed: false, nextLevel: 3, stars: 0 });
-  assert.deepStrictEqual(game.getRoundOutcome(16, 20, 3), { passed: true, nextLevel: 4, stars: 1 });
-  assert.deepStrictEqual(game.getRoundOutcome(18, 20, 3), { passed: true, nextLevel: 4, stars: 2 });
-  assert.deepStrictEqual(game.getRoundOutcome(20, 20, 3), { passed: true, nextLevel: 4, stars: 3 });
+  assert.deepStrictEqual(game.getRoundOutcome(7, 10, 1), { passed: false, nextLevel: 1, stars: 0 });
+  assert.deepStrictEqual(game.getRoundOutcome(8, 10, 1), { passed: true, nextLevel: 2, stars: 1 });
+  assert.deepStrictEqual(game.getRoundOutcome(9, 10, 1), { passed: true, nextLevel: 2, stars: 2 });
+  assert.deepStrictEqual(game.getRoundOutcome(10, 10, 1), { passed: true, nextLevel: 2, stars: 3 });
 });
 
 test('result button says LEVEL UP only after passing the level', () => {
@@ -83,16 +84,16 @@ test('result button says LEVEL UP only after passing the level', () => {
 });
 
 test('generated question has a dotted expression and exactly one correct option', () => {
-  const question = game.createQuestion(1, () => 0);
-  assert.strictEqual(question.expression, '5 · 5');
-  assert.strictEqual(question.correctAnswer, 25);
+  const question = game.createQuestion(1, () => 0.5);
+  assert.strictEqual(question.expression, '6 · 2');
+  assert.strictEqual(question.correctAnswer, 12);
   assert.strictEqual(question.options.length, 3);
   assert.strictEqual(new Set(question.options).size, 3);
   assert.strictEqual(question.options.filter((option) => option === question.correctAnswer).length, 1);
 });
 
 test('generated round does not repeat the same ordered multiplication twice in a row', () => {
-  const round = game.createRound(1, () => 0);
+  const round = game.createRound(9, () => 0);
   assert.strictEqual(round.length, 10);
 
   for (let index = 1; index < round.length; index += 1) {
@@ -101,6 +102,7 @@ test('generated round does not repeat the same ordered multiplication twice in a
 });
 
 test('generated round length follows the current level factor count', () => {
-  assert.strictEqual(game.createRound(1, () => 0).length, 10);
-  assert.strictEqual(game.createRound(2, () => 0).length, 20);
+  assert.strictEqual(game.createRound(1, () => 0.5).length, 10);
+  assert.strictEqual(game.createRound(9, () => 0.5).length, 10);
+  assert.strictEqual(game.createRound(16, () => 0.5).length, 20);
 });

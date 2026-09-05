@@ -39,6 +39,20 @@
       <div id="feedback" class="feedback" aria-live="polite"></div>
     </section>
 
+    <section id="wrong-overlay" class="screen">
+      <div class="wrong-overlay-content">
+        <div class="wrong-icon" aria-hidden="true">✕</div>
+        <h2>Chyba!</h2>
+        <p class="wrong-prompt">Správně je:</p>
+        <div id="wrong-expression" class="wrong-expression"></div>
+        <div id="wrong-answers" class="wrong-answers"></div>
+        <div class="wrong-stats">
+          <span id="wrong-correct-count">0 správně</span>
+          <span id="wrong-wrong-count">0 špatně</span>
+        </div>
+      </div>
+    </section>
+
     <section id="result-screen" class="screen">
       <div id="result-burst" class="result-burst">★</div>
       <h2>Level dokončen</h2>
@@ -54,6 +68,7 @@
     const screens = {
       start: document.getElementById('start-screen'),
       question: document.getElementById('question-screen'),
+      wrong: document.getElementById('wrong-overlay'),
       result: document.getElementById('result-screen')
     };
     const levelEl = document.getElementById('level');
@@ -68,6 +83,10 @@
     const scoreBreakdownEl = document.getElementById('score-breakdown');
     const continueButtonEl = document.getElementById('continue-button');
     const resultBurstEl = document.getElementById('result-burst');
+    const wrongExpressionEl = document.getElementById('wrong-expression');
+    const wrongAnswersEl = document.getElementById('wrong-answers');
+    const wrongCorrectCountEl = document.getElementById('wrong-correct-count');
+    const wrongWrongCountEl = document.getElementById('wrong-wrong-count');
 
     let state = {
       level: game.readStoredLevel(),
@@ -146,8 +165,9 @@
         feedbackEl.textContent = 'Správně!';
         feedbackEl.className = 'feedback good pop';
       } else {
-        feedbackEl.textContent = `Špatně. Správně je ${state.activeQuestion.correctAnswer}.`;
-        feedbackEl.className = 'feedback bad pop';
+        // Show wrong overlay
+        showWrongOverlay();
+        return;
       }
 
       Array.from(answersEl.children).forEach((button) => {
@@ -161,6 +181,32 @@
 
       state.questionIndex += 1;
       window.setTimeout(nextQuestion, correct ? 850 : 1400);
+    }
+
+    function showWrongOverlay() {
+      const q = state.activeQuestion;
+      const wrongCount = state.questionIndex + 1 - state.correctCount;
+
+      wrongExpressionEl.textContent = `${q.expression} = ${q.correctAnswer}`;
+      wrongCorrectCountEl.textContent = `${state.correctCount} správně`;
+      wrongWrongCountEl.textContent = `${wrongCount} špatně`;
+
+      // Show only the correct answer button
+      wrongAnswersEl.innerHTML = '';
+      const button = document.createElement('button');
+      button.className = 'answer-button correct';
+      button.type = 'button';
+      button.textContent = q.correctAnswer;
+      button.addEventListener('click', handleWrongOverlayTap);
+      wrongAnswersEl.appendChild(button);
+
+      showScreen('wrong');
+    }
+
+    function handleWrongOverlayTap() {
+      state.questionIndex += 1;
+      showScreen('question');
+      nextQuestion();
     }
 
     function finishRound() {

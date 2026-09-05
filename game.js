@@ -5,11 +5,36 @@
   };
 
   function getLevelFactors(level) {
-    return level <= 1 ? [5, 6, 7] : [5, 6, 7, 8];
+    const tables = {
+      1: [2],
+      2: [3],
+      3: [4],
+      4: [5],
+      5: [6],
+      6: [7],
+      7: [8],
+      8: [9],
+      9: [2, 3],
+      10: [4, 5],
+      11: [6, 7],
+      12: [8, 9],
+      13: [2, 3, 4],
+      14: [5, 6, 7],
+      15: [7, 8, 9],
+      16: [3, 4, 5, 6],
+      17: [6, 7, 8, 9]
+    };
+
+    if (level >= 18) {
+      return [2, 3, 4, 5, 6, 7, 8, 9];
+    }
+
+    return tables[level] || [2, 3, 4, 5, 6, 7, 8, 9];
   }
 
   function getTimeLimit(level) {
-    return level >= 4 ? 10 : 15;
+    // Slow time until level 18 (all numbers combined)
+    return level >= 18 ? 10 : 30;
   }
 
   function getRoundQuestionCount(factors) {
@@ -101,8 +126,10 @@
 
   function createQuestion(level, random = Math.random, previousExpression = null) {
     const factors = getLevelFactors(level);
+    const multipliers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+
     let first = pick(factors, random);
-    let second = pick(factors, random);
+    let second = pick(multipliers, random);
 
     if (random() >= 0.5) {
       const value = first;
@@ -110,13 +137,19 @@
       second = value;
     }
 
-    if (`${first} · ${second}` === previousExpression) {
-      const alternatives = factors
-        .flatMap((left) => factors.map((right) => [left, right]))
-        .filter((fact) => `${fact[0]} · ${fact[1]}` !== previousExpression);
-      const replacement = pick(alternatives, random);
-      first = replacement[0];
-      second = replacement[1];
+    const allCombinations = factors
+      .flatMap((f) => multipliers.map((m) => [f, m]))
+      .concat(multipliers.flatMap((m) => factors.map((f) => [m, f])));
+
+    if (previousExpression && `${first} · ${second}` === previousExpression) {
+      const alternatives = allCombinations.filter(
+        (fact) => `${fact[0]} · ${fact[1]}` !== previousExpression
+      );
+      if (alternatives.length > 0) {
+        const replacement = pick(alternatives, random);
+        first = replacement[0];
+        second = replacement[1];
+      }
     }
 
     const correctAnswer = first * second;
@@ -149,7 +182,10 @@
 
   function readStoredLevel() {
     const level = Math.floor(readStoredNumber(storageKeys.level, 1));
-    return level >= 1 ? level : 1;
+    if (level < 1 || level > 20) {
+      return 1;
+    }
+    return level;
   }
 
   function readStoredScore() {
