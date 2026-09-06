@@ -38,7 +38,7 @@
   }
 
   function getRoundQuestionCount(factors) {
-    return Math.ceil((factors.length * factors.length) / 10) * 10;
+    return 20;
   }
 
   function calculateRoundScore(correctCount, questionCount, level) {
