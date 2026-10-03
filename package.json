@@ -1,0 +1,7 @@
+{
+  "name": "nasobilka",
+  "private": true,
+  "scripts": {
+    "test": "node game.test.js"
+  }
+}

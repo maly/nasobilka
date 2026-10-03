@@ -22,7 +22,7 @@ test('level 9 combines tables 2 and 3', () => {
   assert.deepStrictEqual(factors, [2, 3]);
 });
 
-test('level 4 uses a 10 second limit while earlier levels use 15 seconds', () => {
+test('level 18 switches the limit from 30 to 10 seconds', () => {
     assert.strictEqual(game.getTimeLimit(1), 30);
     assert.strictEqual(game.getTimeLimit(10), 30);
     assert.strictEqual(game.getTimeLimit(17), 30);
@@ -102,4 +102,99 @@ test('generated round is always 20 questions', () => {
   assert.strictEqual(game.createRound(1, () => 0.5).length, 20);
   assert.strictEqual(game.createRound(9, () => 0.5).length, 20);
   assert.strictEqual(game.createRound(18, () => 0.5).length, 20);
+});
+
+// Pomocník: podstrčí falešný localStorage (root je v Node globalThis) a po testu ho vrátí zpět.
+function withLocalStorage(descriptor, fn) {
+  const original = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+  Object.defineProperty(globalThis, 'localStorage', Object.assign({ configurable: true }, descriptor));
+  try {
+    fn();
+  } finally {
+    if (original) {
+      Object.defineProperty(globalThis, 'localStorage', original);
+    } else {
+      delete globalThis.localStorage;
+    }
+  }
+}
+
+function fakeStorage(initial = {}) {
+  const data = Object.assign({}, initial);
+  return {
+    data,
+    getItem: (key) => (Object.prototype.hasOwnProperty.call(data, key) ? data[key] : null),
+    setItem: (key, value) => {
+      data[key] = String(value);
+    }
+  };
+}
+
+test('storage: throwing localStorage getter falls back to level 1 and score 0', () => {
+  withLocalStorage({
+    get() {
+      const error = new Error('blocked');
+      error.name = 'SecurityError';
+      throw error;
+    }
+  }, () => {
+    assert.strictEqual(game.readStoredLevel(), 1);
+    assert.strictEqual(game.readStoredScore(), 0);
+    assert.strictEqual(game.saveProgress(5, 100), false);
+  });
+});
+
+test('storage: throwing getItem falls back to defaults', () => {
+  const storage = fakeStorage();
+  storage.getItem = () => {
+    throw new Error('boom');
+  };
+  withLocalStorage({ value: storage }, () => {
+    assert.strictEqual(game.readStoredLevel(), 1);
+    assert.strictEqual(game.readStoredScore(), 0);
+  });
+});
+
+test('storage: setItem throwing QuotaExceededError does not throw and returns false', () => {
+  const storage = fakeStorage();
+  storage.setItem = () => {
+    const error = new Error('quota');
+    error.name = 'QuotaExceededError';
+    throw error;
+  };
+  withLocalStorage({ value: storage }, () => {
+    assert.doesNotThrow(() => game.saveProgress(5, 1200));
+    assert.strictEqual(game.saveProgress(5, 1200), false);
+  });
+});
+
+test('storage: missing localStorage falls back and saveProgress returns false', () => {
+  withLocalStorage({ value: undefined }, () => {
+    assert.strictEqual(game.readStoredLevel(), 1);
+    assert.strictEqual(game.readStoredScore(), 0);
+    assert.strictEqual(game.saveProgress(2, 10), false);
+  });
+});
+
+test('storage: empty storage (null values) gives level 1 and score 0', () => {
+  withLocalStorage({ value: fakeStorage() }, () => {
+    assert.strictEqual(game.readStoredLevel(), 1);
+    assert.strictEqual(game.readStoredScore(), 0);
+  });
+});
+
+test('storage: invalid or out-of-range values give level 1', () => {
+  ['abc', '-5', '99', '0', 'NaN'].forEach((raw) => {
+    withLocalStorage({ value: fakeStorage({ 'nasobilka.level': raw }) }, () => {
+      assert.strictEqual(game.readStoredLevel(), 1, raw);
+    });
+  });
+});
+
+test('storage: saveProgress and read roundtrip', () => {
+  withLocalStorage({ value: fakeStorage() }, () => {
+    assert.strictEqual(game.saveProgress(5, 1200), true);
+    assert.strictEqual(game.readStoredLevel(), 5);
+    assert.strictEqual(game.readStoredScore(), 1200);
+  });
 });
