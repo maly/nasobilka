@@ -175,9 +175,30 @@
     return questions;
   }
 
+  // Přístup k localStorage může sám vyhodit výjimku (SecurityError při zablokovaném úložišti).
+  function getStorage() {
+    try {
+      return root.localStorage || null;
+    } catch (error) {
+      return null;
+    }
+  }
+
   function readStoredNumber(key, fallback) {
-    const value = Number(root.localStorage && root.localStorage.getItem(key));
-    return Number.isFinite(value) && value >= 0 ? value : fallback;
+    const storage = getStorage();
+    if (!storage) {
+      return fallback;
+    }
+    try {
+      const raw = storage.getItem(key);
+      if (raw === null || raw === undefined) {
+        return fallback;
+      }
+      const value = Number(raw);
+      return Number.isFinite(value) && value >= 0 ? value : fallback;
+    } catch (error) {
+      return fallback;
+    }
   }
 
   function readStoredLevel() {
@@ -192,12 +213,20 @@
     return Math.round(readStoredNumber(storageKeys.score, 0));
   }
 
+  // Vrací true, pokud se postup uložil; false, pokud je úložiště nedostupné.
   function saveProgress(level, score) {
-    if (!root.localStorage) {
-      return;
+    const storage = getStorage();
+    if (!storage) {
+      return false;
     }
-    root.localStorage.setItem(storageKeys.level, String(level));
-    root.localStorage.setItem(storageKeys.score, String(score));
+    try {
+      storage.setItem(storageKeys.level, String(level));
+      storage.setItem(storageKeys.score, String(score));
+      return true;
+    } catch (error) {
+      // úložiště nedostupné nebo plné – hra pokračuje bez ukládání
+      return false;
+    }
   }
 
   const api = {
