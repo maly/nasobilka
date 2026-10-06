@@ -184,7 +184,7 @@ test('storage: empty storage (null values) gives level 1 and score 0', () => {
 });
 
 test('storage: invalid or out-of-range values give level 1', () => {
-  ['abc', '-5', '99', '0', 'NaN'].forEach((raw) => {
+  ['abc', '-5', '0', 'NaN'].forEach((raw) => {
     withLocalStorage({ value: fakeStorage({ 'nasobilka.level': raw }) }, () => {
       assert.strictEqual(game.readStoredLevel(), 1, raw);
     });
@@ -196,5 +196,31 @@ test('storage: saveProgress and read roundtrip', () => {
     assert.strictEqual(game.saveProgress(5, 1200), true);
     assert.strictEqual(game.readStoredLevel(), 5);
     assert.strictEqual(game.readStoredScore(), 1200);
+  });
+});
+
+// Hra nemá strop levelů (nextLevel = level + 1), takže postup nad level 20 se po obnovení stránky nesmí ztratit.
+test('storage: level above 20 survives page reload together with score', () => {
+  withLocalStorage({ value: fakeStorage() }, () => {
+    assert.strictEqual(game.saveProgress(21, 5000), true);
+    assert.strictEqual(game.readStoredLevel(), 21);
+    assert.strictEqual(game.readStoredScore(), 5000);
+  });
+});
+
+test('storage: high stored level is loaded unchanged, not reset to 1', () => {
+  withLocalStorage({ value: fakeStorage({ 'nasobilka.level': '99' }) }, () => {
+    assert.strictEqual(game.readStoredLevel(), 99);
+  });
+});
+
+test('storage: fractional level rounds down and invalid values still give level 1', () => {
+  withLocalStorage({ value: fakeStorage({ 'nasobilka.level': '1.9' }) }, () => {
+    assert.strictEqual(game.readStoredLevel(), 1);
+  });
+  ['0', '-5', 'abc', 'NaN'].forEach((raw) => {
+    withLocalStorage({ value: fakeStorage({ 'nasobilka.level': raw }) }, () => {
+      assert.strictEqual(game.readStoredLevel(), 1, raw);
+    });
   });
 });
