@@ -203,7 +203,7 @@
 
   function readStoredLevel() {
     const level = Math.floor(readStoredNumber(storageKeys.level, 1));
-    if (level < 1 || level > 20) {
+    if (level < 1) {
       return 1;
     }
     return level;
